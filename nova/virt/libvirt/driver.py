@@ -9517,10 +9517,21 @@ class LibvirtDriver(driver.ComputeDriver):
             LOG.debug('Ignoring sharing provider - see bug #1784020')
 
         if disk_gb:
+            # Check for admin-configured disk extension
+            extension_gb = self._get_disk_extension_from_placement(
+                provider_tree, nodename)
+
+            # Calculate total schedulable disk capacity
+            total_disk_gb = disk_gb + extension_gb
+
+            if extension_gb > 0:
+                LOG.info('Detected CUSTOM_GC_EXTEND_DISK_GB: %d GB, extending DISK_GB '
+                         'from %d to %d', extension_gb, disk_gb, total_disk_gb)
+
             result[orc.DISK_GB] = {
-                'total': disk_gb,
+                'total': total_disk_gb,
                 'min_unit': 1,
-                'max_unit': disk_gb,
+                'max_unit': total_disk_gb,
                 'step_size': 1,
                 'allocation_ratio': ratios[orc.DISK_GB],
                 'reserved': (self._get_reserved_host_disk_gb_from_config() +
@@ -9605,6 +9616,41 @@ class LibvirtDriver(driver.ComputeDriver):
 
         LOG.debug("Available memory encrypted slots: %d", slots)
         return slots
+
+    def _get_disk_extension_from_placement(self, provider_tree, nodename):
+        """Get disk extension capacity from CUSTOM_GC_EXTEND_DISK_GB resource.
+
+        :param provider_tree: ProviderTree object containing current inventory
+        :param nodename: Name of the compute node
+        :returns: Extension capacity in GB (int)
+        """
+        if not CONF.enable_disk_extension:
+            return 0
+
+        try:
+            current_inventory = provider_tree.data(nodename).inventory
+            extension_inventory = current_inventory.get('CUSTOM_GC_EXTEND_DISK_GB', {})
+            extension_total = extension_inventory.get('total', 0)
+
+            if extension_total <= 0:
+                return 0
+
+            # Apply safety limit
+            max_extension = CONF.max_disk_extension_gb
+            if max_extension > 0 and extension_total > max_extension:
+                LOG.warning(
+                    'CUSTOM_GC_EXTEND_DISK_GB value %d exceeds maximum %d, '
+                    'capping extension to maximum',
+                    extension_total, max_extension)
+                extension_total = max_extension
+
+            LOG.debug('Using CUSTOM_GC_EXTEND_DISK_GB: %d GB (limit: %s)',
+                      extension_total, max_extension if max_extension > 0 else 'none')
+            return extension_total
+
+        except Exception as e:
+            LOG.warning('Failed to retrieve CUSTOM_GC_EXTEND_DISK_GB capacity: %s', e)
+            return 0
 
     @property
     def static_traits(self) -> ty.Dict[str, bool]:

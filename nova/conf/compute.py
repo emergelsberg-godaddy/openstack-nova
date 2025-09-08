@@ -577,6 +577,26 @@ Related options:
 """)
 ]
 
+disk_extension_opts = [
+    cfg.BoolOpt('enable_disk_extension',
+        default=True,
+        help="""
+Enable support for dynamic disk extension via CUSTOM_GC_EXTEND_DISK_GB resource class.
+
+When enabled, Nova will detect CUSTOM_GC_EXTEND_DISK_GB inventory and automatically
+add it to the reported DISK_GB capacity for scheduling purposes.
+"""),
+    cfg.IntOpt('max_disk_extension_gb',
+        default=10000,
+        min=0,
+        help="""
+Maximum allowed disk extension in GB via CUSTOM_GC_EXTEND_DISK_GB.
+
+This safety limit prevents accidental configuration of unrealistic values.
+Set to 0 to disable the limit.
+"""),
+]
+
 compute_manager_opts = [
     cfg.StrOpt('console_host',
         default=socket.gethostname(),
@@ -1516,6 +1536,7 @@ Possible values:
 ALL_OPTS = (compute_opts +
             resource_tracker_opts +
             allocation_ratio_opts +
+            disk_extension_opts +
             compute_manager_opts +
             interval_opts +
             timeout_opts +
