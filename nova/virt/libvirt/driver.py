@@ -9538,6 +9538,12 @@ class LibvirtDriver(driver.ComputeDriver):
                              self._get_disk_size_reserved_for_image_cache()),
             }
 
+            # IMPORTANT: Preserve the CUSTOM_GC_EXTEND_DISK_GB inventory
+            # to prevent it from being removed during periodic updates
+            if extension_gb > 0:
+                result['CUSTOM_GC_EXTEND_DISK_GB'] = inv.get('CUSTOM_GC_EXTEND_DISK_GB', {})
+                LOG.debug('Preserving CUSTOM_GC_EXTEND_DISK_GB inventory: %d GB', extension_gb)
+
         # TODO(sbauza): Use traits to providing vGPU types. For the moment,
         # it will be only documentation support by explaining to use
         # osc-placement to create custom traits for each of the pGPU RPs.
